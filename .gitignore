@@ -9,3 +9,6 @@ skills-lock.json
 # OS / editor cruft
 .DS_Store
 *.log
+
+# subagent-driven-development scratch
+.superpowers/
