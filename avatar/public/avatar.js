@@ -44,20 +44,22 @@ const KEYMAP = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight
   let ws = null;
   connect();
   function connect() {
-    ws = new WebSocket(`ws://${location.host}`);
+    ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`);
     ws.onmessage = (e) => {
       let m; try { m = JSON.parse(e.data); } catch { return; }
       if (m.t === 'you') { myId = m.id; window.__arena.you = m; window.__arena.room = m.room; setBanner(m.room); }
-      else if (m.t === 'roster') { window.__arena.players = m.players; sync(m.players); }
+      else if (m.t === 'roster' && Array.isArray(m.players)) { window.__arena.players = m.players; sync(m.players); }
       else if (m.t === 'room') { window.__arena.room = m.connected; setBanner(m.connected); }
     };
-    ws.onclose = () => setTimeout(connect, 1000);
+    ws.onclose = () => { window.__arena.room = false; setBanner(false); setTimeout(connect, 1000); };
     ws.onerror = () => ws.close();
   }
 
   window.addEventListener('keydown', (e) => {
     const dir = KEYMAP[e.key];
-    if (dir && ws && ws.readyState === 1) { e.preventDefault(); ws.send(JSON.stringify({ t: 'move', dir })); }
+    if (!dir) return;
+    e.preventDefault();
+    if (ws && ws.readyState === 1) ws.send(JSON.stringify({ t: 'move', dir }));
   });
 
   function setBanner(connected) {
@@ -95,6 +97,6 @@ function makeAvatar(p) {
     setColour: (col) => { body.tint = tintOf(col); },
     setName: (n) => { if (label.text !== n) label.text = n; },
     setScore: (s) => { const t = String(s); if (score.text !== t) score.text = t; },
-    setYou: (yes) => { ring.visible = yes; if (yes && !label.text.endsWith(' (you)')) label.text = p.nama; },
+    setYou: (yes) => { ring.visible = yes; },
   };
 }

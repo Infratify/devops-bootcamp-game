@@ -45,9 +45,9 @@ window.__arena = { players: [], connected: false };
 
   connect();
   function connect() {
-    const ws = new WebSocket(`ws://${location.host}`);
+    const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}`);
     ws.onopen = () => { window.__arena.connected = true; ws.send(JSON.stringify({ t: 'hello', role: 'spectator' })); };
-    ws.onmessage = (e) => { let m; try { m = JSON.parse(e.data); } catch { return; } if (m.t === 'roster') { window.__arena.players = m.players; sync(m.players); } };
+    ws.onmessage = (e) => { let m; try { m = JSON.parse(e.data); } catch { return; } if (m.t === 'roster' && Array.isArray(m.players)) { window.__arena.players = m.players; sync(m.players); } };
     ws.onclose = () => { window.__arena.connected = false; setTimeout(connect, 1000); };
     ws.onerror = () => ws.close();
   }
