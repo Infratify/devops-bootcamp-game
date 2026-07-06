@@ -27,3 +27,17 @@ test('prototype-chain dir names are invalid, return copy', () => {
     assert.deepEqual(move(p, bad), { x: 10, y: 20 });
   }
 });
+test('isDir accepts diagonals', () => {
+  assert.equal(isDir('upright'), true);
+  assert.equal(isDir('downleft'), true);
+});
+test('diagonal move steps both axes, normalized', () => {
+  const D = Math.round(STEP * Math.SQRT1_2);
+  assert.deepEqual(move({ x: 800, y: 500 }, 'upright'), { x: 800 + D, y: 500 - D });
+  assert.deepEqual(move({ x: 800, y: 500 }, 'downleft'), { x: 800 - D, y: 500 + D });
+  assert.ok(D < STEP);                                  // each axis < a cardinal step
+  assert.ok(Math.abs(D * Math.SQRT2 - STEP) <= 1);      // euclidean ≈ STEP, not √2 larger
+});
+test('diagonal move clamps to bounds', () => {
+  assert.deepEqual(move({ x: AVATAR_R, y: AVATAR_R }, 'upleft'), { x: AVATAR_R, y: AVATAR_R });
+});
