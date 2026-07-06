@@ -9,9 +9,9 @@ const clampNum = (v, lo, hi, dflt) => {
   return Math.max(lo, Math.min(hi, n));
 };
 
-const clampScore = (v) => {
+const clampScore = (v, dflt) => {
   const n = Number(v);
-  if (!Number.isFinite(n)) return 0;
+  if (!Number.isFinite(n)) return dflt;
   return Math.max(0, Math.floor(n));
 };
 
@@ -21,7 +21,7 @@ export function sanitizeJoin(info = {}) {
     colour: cleanStr(info.colour, 32) || 'aqua',
     x: clampNum(info.x, 0, WORLD_W, WORLD_W / 2),
     y: clampNum(info.y, 0, WORLD_H, WORLD_H / 2),
-    score: clampScore(info.score),
+    score: clampScore(info.score, 0),
   };
 }
 
@@ -29,7 +29,7 @@ export function sanitizeUpdate(patch = {}) {
   const out = {};
   if (patch.x !== undefined) { const n = clampNum(patch.x, 0, WORLD_W, undefined); if (n !== undefined) out.x = n; }
   if (patch.y !== undefined) { const n = clampNum(patch.y, 0, WORLD_H, undefined); if (n !== undefined) out.y = n; }
-  if (patch.score !== undefined) out.score = clampScore(patch.score);
+  if (patch.score !== undefined) { const n = clampScore(patch.score, undefined); if (n !== undefined) out.score = n; }
   return out;
 }
 

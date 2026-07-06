@@ -43,3 +43,20 @@ test('Room join/update/leave/roster lifecycle', () => {
   assert.equal(r.leave(id), true);
   assert.equal(r.roster().length, 0);
 });
+
+test('sanitizeUpdate omits invalid score', () => {
+  assert.deepEqual(sanitizeUpdate({ score: 'bad' }), {});
+});
+
+test('sanitizeUpdate keeps valid score', () => {
+  assert.deepEqual(sanitizeUpdate({ score: 5 }), { score: 5 });
+});
+
+test('sanitizeJoin empty/whitespace colour → default', () => {
+  assert.equal(sanitizeJoin({ colour: '   ' }).colour, 'aqua');
+});
+
+test('Room leave on missing id returns false', () => {
+  const r = new Room();
+  assert.equal(r.leave('nope'), false);
+});
