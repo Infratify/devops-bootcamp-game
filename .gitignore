@@ -1,0 +1,11 @@
+# dependencies
+node_modules/
+
+# agent tooling — regenerate with:
+#   npx skills add https://github.com/pixijs/pixijs-skills
+.agents/
+skills-lock.json
+
+# OS / editor cruft
+.DS_Store
+*.log
