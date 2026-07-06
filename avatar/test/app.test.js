@@ -64,3 +64,25 @@ test('serves browser, moves, increments score, persists, forwards to room', asyn
     await app.close();
   }
 });
+
+test('re-sends you with the server-assigned id on welcome (fixes stale you-ring)', async () => {
+  const store = fakeStore({ nama: 'Ariff' });
+  const sink = {};
+  const app = await startAvatar({ env: { COLOR: 'cyan', SERVER: '' }, storeFactory: async () => store, roomFactory: fakeRoomFactory(sink), port: 0 });
+  try {
+    const ws = new WebSocket(`ws://localhost:${app.port}`);
+    const nextMsg = collectMessages(ws);
+    await new Promise((r) => ws.on('open', r));
+    const firstYou = await nextMsg((m) => m.t === 'you');
+    assert.ok(firstYou.id.startsWith('a'), 'initial id is the locally-generated rid()');
+
+    sink.handlers.onWelcome('p9');
+
+    const secondYou = await nextMsg((m) => m.t === 'you');
+    assert.equal(secondYou.id, 'p9', 'browser gets a fresh you with the server-assigned id');
+    assert.notEqual(secondYou.id, firstYou.id);
+    ws.close();
+  } finally {
+    await app.close();
+  }
+});

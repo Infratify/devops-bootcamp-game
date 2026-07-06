@@ -74,7 +74,12 @@ export async function startAvatar({ env = {}, storeFactory, roomFactory, port = 
 
   const room = roomFactory(env.SERVER, {
     getJoinPayload: () => ({ nama: self.nama, colour: self.colour, x: self.x, y: self.y, score: self.score }),
-    onWelcome: (id) => { self.id = id; pushRoster(); },
+    onWelcome: (id) => {
+      self.id = id;
+      const msg = youMsg({ id: self.id, nama: self.nama, colour: self.colour, x: self.x, y: self.y, score: self.score, room: roomConnected });
+      for (const b of browsers) send(b, msg);
+      pushRoster();
+    },
     onRoster: (players) => { serverRoster = players; pushRoster(); },
     onStatus: (c) => { roomConnected = c; pushRoom(); pushRoster(); },
   });
