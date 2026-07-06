@@ -21,3 +21,9 @@ test('invalid dir returns copy', () => {
   assert.deepEqual(r, p);
   assert.notEqual(r, p);
 });
+test('prototype-chain dir names are invalid, return copy', () => {
+  const p = { x: 10, y: 20 };
+  for (const bad of ['toString', 'constructor', '__proto__', 'hasOwnProperty']) {
+    assert.deepEqual(move(p, bad), { x: 10, y: 20 });
+  }
+});
