@@ -1,0 +1,9 @@
+{
+  "name": "arena-avatar",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "start": "node src/index.js", "test": "node --test" },
+  "dependencies": { "ws": "^8.18.0", "redis": "^4.7.0" },
+  "devDependencies": { "pixi.js": "^8.6.0" }
+}
