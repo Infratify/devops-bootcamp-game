@@ -71,7 +71,7 @@ This split is a feature: every student does LO2 + LO3 hands-on, and only the
    │   ┌───────────────┐   by name    ┌────────────┐  │
    │   │ avatar        │ ───"profile"──▶│ profile    │  │
    │   │ (arena-avatar)│  over "arena" │ (redis)    │  │
-   │   │  -e NAME      │               │ -v me:/data│  │  ← volume "me" = the pet
+   │   │  -e SERVER    │               │ -v me:/data│  │  ← volume "me" = the pet
    │   │  -e COLOR     │               └────────────┘  │
    │   │  -p 8080:8080 │                                │
    │   └───────────────┘  serves localhost:8080 view   │
@@ -89,8 +89,10 @@ This split is a feature: every student does LO2 + LO3 hands-on, and only the
    store**, run as `--name profile -v me:/data`. Holds their character
    (`name`, `colour`, `score`, last position). Framed on slides as "kotak ingatan"
    (memory box) — **never** "database"/"SQL". **Ensure durable persistence to the
-   volume** (`redis-server --appendonly yes`, or have the avatar issue `SAVE` on
-   every profile write) so the "kill it, character survived" demo is reliable.
+   volume**: the avatar issues `SAVE` (RDB) on every profile write. Do **not** use
+   AOF (`--appendonly yes`) — a plain `redis` re-run boots `appendonly no`, loads
+   `dump.rdb`, and ignores the AOF, silently breaking the volume proof — so `SAVE`
+   is what makes the "kill it, character survived" demo reliable.
 
 3. **`infratify/arena-avatar`** *(I build + publish)* — each student's client.
    - Env: `COLOR` (avatar colour, per-run), `SERVER` (`ip:port` of the instructor
@@ -150,7 +152,7 @@ by name (which is *why* it needs the network), and takes `COLOR`/`SERVER` from e
 
 - **Node 20+** (the bootcamp already teaches `node:20`; `arena-*` images `FROM node:20-alpine`).
 - **`ws`** for WebSockets (tiny, battle-tested). No game engine.
-- **Plain HTML5 `<canvas>` + native `WebSocket`** for the client view (no framework — must be bulletproof and offline-cacheable).
+- **PixiJS v8 (vendored browser build) on an HTML5 `<canvas>` + native `WebSocket`** for the client view — Pixi is committed into each image (`public/vendor/pixi.min.js`, global `PIXI`, no bundler/build step, no CDN) so it stays bulletproof and offline-cacheable. (Chosen over raw canvas for procedural, colour-tinted avatars; see the design spec.)
 - **`redis` npm client** in the avatar for the profile store.
 - Keep total dependencies minimal. No build step beyond what's needed; small images.
 
@@ -179,7 +181,8 @@ finicky and less "cool". Browser canvas wins on the wow factor the cohort needs.
    `:8080` → movement/score persisted to redis.
 4. Failure modes: clear error when `profile` unresolvable; graceful local-only
    mode when `SERVER` unreachable.
-5. Durable redis persistence to `/data` (appendonly or explicit SAVE).
+5. Durable redis persistence to `/data` via explicit `SAVE` (RDB) on writes — **not**
+   AOF (a plain `redis` re-run boots `appendonly no` and loads `dump.rdb`, ignoring the AOF).
 6. Publish `infratify/arena-server` + `infratify/arena-avatar` to the registry
    students pull from (Docker Hub public, or the shared ECR). Pin tags.
 7. A `docker-compose.yml` here is **for my testing only** — it is *not* shown to
