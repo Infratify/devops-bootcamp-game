@@ -101,8 +101,8 @@ This split is a feature: every student does LO2 + LO3 hands-on, and only the
    - On start: connect to `profile` (redis) **by name** over `arena` → read `nama`
      (+ colour fallback) → connect to `SERVER` WebSocket → serve a small canvas
      client at `localhost:8080` where the student sees the room and moves
-     (arrows/WASD). Movement + score changes write back to redis (so the volume
-     matters).
+     (arrows/WASD, **8-directional** — hold two keys for diagonals). Movement +
+     score changes write back to redis (so the volume matters).
    - Must **fail loudly and clearly** if it can't resolve `profile` (that failure
      IS the network lesson) and **degrade gracefully** if `SERVER` is unreachable
      (still runs locally so the volume/network labs work without the shared room).
@@ -152,7 +152,7 @@ by name (which is *why* it needs the network), and takes `COLOR`/`SERVER` from e
 
 - **Node 20+** (the bootcamp already teaches `node:20`; `arena-*` images `FROM node:20-alpine`).
 - **`ws`** for WebSockets (tiny, battle-tested). No game engine.
-- **PixiJS v8 (vendored browser build) on an HTML5 `<canvas>` + native `WebSocket`** for the client view — Pixi is committed into each image (`public/vendor/pixi.min.js`, global `PIXI`, no bundler/build step, no CDN) so it stays bulletproof and offline-cacheable. (Chosen over raw canvas for procedural, colour-tinted avatars; see the design spec.)
+- **PixiJS v8 (vendored browser build) on an HTML5 `<canvas>` + native `WebSocket`** for the client view — Pixi is committed into each image (`public/vendor/pixi.min.js`, global `PIXI`, no bundler/build step, no CDN) so it stays bulletproof and offline-cacheable. Avatars are **16×32 pixel-art chibi sprites** (vendored `public/sprites/char-{idle,walk}.png`, 32×32 frames × 4 frames × 5 facing rows), left white and given a per-player **colour ring + nameplate** rather than tinting the sprite; facing + walk animation are derived client-side from movement (see the design specs).
 - **`redis` npm client** in the avatar for the profile store.
 - Keep total dependencies minimal. No build step beyond what's needed; small images.
 
@@ -175,10 +175,20 @@ finicky and less "cool". Browser canvas wins on the wow factor the cohort needs.
 **Built and proven (2026-07-06).** `arena-server` + `arena-avatar` + `redis` join a
 shared room; the full pinned `docker run` flow is verified end-to-end by
 `scripts/e2e.sh` (volume survival, loud-fail without `--network arena`, graceful
-degrade, two-player room), plus 29 `node:test` unit/integration tests. Node/ESM,
+degrade, two-player room), plus 38 `node:test` unit/integration tests. Node/ESM,
 `ws` + `redis`, PixiJS v8 vendored. Merged to `main`. Design + plan live in
 `docs/superpowers/specs/2026-07-06-arena-design.md` and
 `docs/superpowers/plans/2026-07-06-arena.md`.
+
+**UI/UX sprite overhaul (2026-07-07, merged to `main`).** Procedural avatars replaced
+by pixel-art chibi sprites with 8-direction movement + facing and a colour ring +
+nameplate cue; both the projector and student views share one `arena-avatar.js`
+factory + a pure, unit-tested `arena-anim.js`. Contract-stable (no image/env/port/
+volume/network/roster/message change → slides unaffected). Load-tested: 60 avatars
+moving continuously ≈ **4.6% of one CPU core**, ~69 MB RSS, steady 20 roster
+broadcasts/sec of ~4.6 KB — comfortable headroom for a full cohort. Specs/plan:
+`docs/superpowers/specs/2026-07-06-arena-sprite-overhaul-design.md`,
+`docs/superpowers/plans/2026-07-06-arena-sprite-overhaul.md`.
 
 Done:
 1. ✅ **Prototype proven first** — with the real `docker run` flow via
