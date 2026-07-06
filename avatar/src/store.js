@@ -18,8 +18,8 @@ export async function createRedisStore(host, { connectTimeout = 3000, maxRetries
     throw e;
   }
   return {
-    async get(k) { return client.get(k); },
-    async set(k, v) { return client.set(k, v); },
+    async get(k) { try { return await client.get(k); } catch { return null; } },
+    async set(k, v) { try { return await client.set(k, v); } catch { return undefined; } },
     async save() { try { return await client.save(); } catch { /* SAVE can fail if a bgsave is mid-flight; safe to skip */ } },
     async quit() { try { await client.quit(); } catch { /* ignore */ } },
   };
