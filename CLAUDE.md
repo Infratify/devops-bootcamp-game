@@ -170,23 +170,35 @@ finicky and less "cool". Browser canvas wins on the wow factor the cohort needs.
 - A Cloudflare Tunnel to a locally-run server is a fallback (they learned Tunnel
   in Cloudflare 2) but EC2 + open port is simpler and more reliable.
 
-## Build milestones (for the future build session)
+## Build status
 
-1. **Prototype, prove it, then slides depend on it.** Get `arena-server` +
-   `arena-avatar` + `redis` actually joining a room locally (two "students" via
-   `docker compose` on one host) before trusting the contract. We have been burned
-   by an over-ambitious custom build shipped unproven — **de-risk first**.
-2. `arena-server`: WebSocket hub + spectator canvas at `/`. Ephemeral roster.
-3. `arena-avatar`: redis-by-name profile load/init → WS join → canvas client at
-   `:8080` → movement/score persisted to redis.
-4. Failure modes: clear error when `profile` unresolvable; graceful local-only
-   mode when `SERVER` unreachable.
-5. Durable redis persistence to `/data` via explicit `SAVE` (RDB) on writes — **not**
-   AOF (a plain `redis` re-run boots `appendonly no` and loads `dump.rdb`, ignoring the AOF).
-6. Publish `infratify/arena-server` + `infratify/arena-avatar` to the registry
-   students pull from (Docker Hub public, or the shared ECR). Pin tags.
-7. A `docker-compose.yml` here is **for my testing only** — it is *not* shown to
-   students (compose is Docker 4's payoff; Docker 3 wires by hand on purpose).
+**Built and proven (2026-07-06).** `arena-server` + `arena-avatar` + `redis` join a
+shared room; the full pinned `docker run` flow is verified end-to-end by
+`scripts/e2e.sh` (volume survival, loud-fail without `--network arena`, graceful
+degrade, two-player room), plus 29 `node:test` unit/integration tests. Node/ESM,
+`ws` + `redis`, PixiJS v8 vendored. Merged to `main`. Design + plan live in
+`docs/superpowers/specs/2026-07-06-arena-design.md` and
+`docs/superpowers/plans/2026-07-06-arena.md`.
+
+Done:
+1. ✅ **Prototype proven first** — with the real `docker run` flow via
+   `scripts/e2e.sh` (two simulated students on one host). **No `docker compose`** was
+   needed or used — compose stays Docker 4's payoff; Docker 3 wires by hand on purpose.
+2. ✅ `arena-server`: WebSocket hub + spectator canvas at `/`. Ephemeral roster.
+3. ✅ `arena-avatar`: redis-by-name profile load/init → WS join → canvas at `:8080`
+   → movement/score persisted to redis.
+4. ✅ Failure modes: clear error when `profile` unresolvable; graceful local-only
+   when `SERVER` unreachable; hub survives a misbehaving avatar.
+5. ✅ Durable redis persistence to `/data` via explicit `SAVE` (RDB) on writes —
+   **not** AOF (a plain `redis` re-run boots `appendonly no` and loads `dump.rdb`,
+   ignoring the AOF).
+
+Remaining:
+6. ⬜ **Publish** `infratify/arena-server` + `infratify/arena-avatar` to the registry
+   students pull from (Docker Hub public, or the shared ECR); pin tags. Images build
+   locally today — until published, build from source (`docker build`).
+7. ⬜ **Sync the slides** (`outlines/2026/docker3.md` + `slides/2026/docker3/`) to the
+   pinned contract once images are published.
 
 ## Guardrails
 

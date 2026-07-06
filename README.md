@@ -11,7 +11,9 @@ It exists for one reason: to make three Docker ideas **visible and fun** in the
 - **connect two containers by name** on a user-defined **network**.
 
 > Not a real game — a teaching prop. Design + build spec lives in [`CLAUDE.md`](./CLAUDE.md).
-> Status: **spec only, not built yet.**
+> Status: **built and proven locally** — server + avatar + redis join a shared room,
+> and the volume + network lessons are verified end-to-end (`scripts/e2e.sh`).
+> Images are not yet published to a registry.
 
 ## How it works
 
@@ -19,7 +21,12 @@ It exists for one reason: to make three Docker ideas **visible and fun** in the
 - **`redis`** — your *remember-box*. Runs on your laptop with a volume, keeps your character (name, colour, score).
 - **`arena-avatar`** — you. Reads your remember-box **by name**, joins the room, and gives you a view at `http://localhost:8080`.
 
-## Run (once the images are published)
+## Run
+
+> The `infratify/*` images aren't published yet — until then, build them locally
+> first: `docker build -t infratify/arena-server ./server` and
+> `docker build -t infratify/arena-avatar ./avatar`. The instructor runs one
+> `arena-server` (published on `:3000`); each student runs the commands below.
 
 ```bash
 # 1) your own little network
