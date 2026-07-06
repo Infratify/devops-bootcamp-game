@@ -63,6 +63,7 @@ const DIRNAME = { '0,-1': 'up', '0,1': 'down', '-1,0': 'left', '1,0': 'right', '
   const held = new Set();
   window.addEventListener('keydown', (e) => { const d = KEYMAP[e.key]; if (!d) return; e.preventDefault(); held.add(d); });
   window.addEventListener('keyup', (e) => { const d = KEYMAP[e.key]; if (!d) return; e.preventDefault(); held.delete(d); });
+  window.addEventListener('blur', () => held.clear()); // focus loss (alt-tab to terminal/slides) must not leave a key stuck
   function currentDir() {
     const ax = (held.has('right') ? 1 : 0) - (held.has('left') ? 1 : 0);
     const ay = (held.has('down') ? 1 : 0) - (held.has('up') ? 1 : 0);
