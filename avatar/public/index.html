@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Arena — you</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #0b1020; overflow: hidden; font-family: system-ui, sans-serif; }
+    #stage { position: fixed; inset: 0; }
+    #banner { position: fixed; top: 0; left: 0; right: 0; text-align: center; padding: 8px; z-index: 3;
+      background: #3a2b12; color: #ffdca8; font-size: 14px; transition: opacity .3s; }
+    #banner.hidden { opacity: 0; pointer-events: none; }
+    #hint { position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%); color: #9fb4d8; font-size: 13px; z-index: 3; }
+  </style>
+</head>
+<body>
+  <div id="banner">You're set up — waiting for the room…</div>
+  <div id="hint">move with WASD or arrow keys</div>
+  <div id="stage"></div>
+  <script src="vendor/pixi.min.js"></script>
+  <script src="avatar.js"></script>
+</body>
+</html>
