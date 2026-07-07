@@ -24,7 +24,7 @@ Docker 3 teaches three things; this prop maps each to something a beginner can
 
 | Docker concept (Docker 3 LO) | What the student does | What they see |
 |---|---|---|
-| **Registry pull** (LO1) | `docker run infratify/arena-avatar` | They pull *my* published image — "you pull a cattle template from a registry", the mirror of pushing their own app to ECR earlier in the session |
+| **Registry pull** (LO1) | `docker run ghcr.io/infratify/arena-avatar` | They pull *my* published image — "you pull a cattle template from a registry", the mirror of pushing their own app to ECR earlier in the session |
 | **Named volume** (LO2) | `-v me:/data` on the profile store | Kill the container, re-run, character (name/colour/score) **survived** |
 | **User-defined network** (LO3) | `docker network create arena` + `--network arena` | The avatar finds the profile store **by name**; without the network it **fails** (built-in productive-failure) |
 
@@ -123,7 +123,7 @@ docker exec profile redis-cli SET nama "Ariff"      # seed your persistent name
 # ---- LO3 network: your avatar reads "profile" by name, then joins the room ----
 docker run -d --name avatar --network arena -p 8080:8080 \
   -e COLOR="cyan" -e SERVER="<instructor-ip>:3000" \
-  infratify/arena-avatar
+  ghcr.io/infratify/arena-avatar
 # open http://localhost:8080  → you're in as "Ariff"; everyone sees you on the projector
 
 # ---- volume proof (pets vs cattle) ----
@@ -132,7 +132,7 @@ docker run -d --name profile --network arena -v me:/data redis   # same volume "
 docker exec profile redis-cli GET nama              # → "Ariff" — survived
 
 # ---- network proof (productive failure) ----
-docker run -d --name avatar -p 8080:8080 -e SERVER="..." infratify/arena-avatar
+docker run -d --name avatar -p 8080:8080 -e SERVER="..." ghcr.io/infratify/arena-avatar
 #   ^ no --network arena  → avatar cannot resolve "profile" → clear error
 #   add --network arena   → works
 ```
@@ -143,6 +143,8 @@ profile store (volume `me`) → **persists** across restarts; `COLOR` is passed 
 by name (which is *why* it needs the network), and takes `COLOR`/`SERVER` from env.
 
 - **Owner/namespace:** `infratify` (matches the bootcamp glossary; `infratify.com` domain).
+  Images are published to GHCR: `ghcr.io/infratify/arena-{server,avatar}` (the `Infratify`
+  org is lowercased for the registry).
 - **Fixed identifiers:** network `arena`, profile container `profile`, avatar
   container `avatar`, volume `me`, avatar client port `8080`, server port `3000`.
 - Students **only ever `docker run`** — they never build the game. Building is
@@ -190,6 +192,13 @@ broadcasts/sec of ~4.6 KB — comfortable headroom for a full cohort. Specs/plan
 `docs/superpowers/specs/2026-07-06-arena-sprite-overhaul-design.md`,
 `docs/superpowers/plans/2026-07-06-arena-sprite-overhaul.md`.
 
+**Published to GHCR (2026-07-07).** CI (`.github/workflows/publish-images.yml`) builds both
+images multi-arch (amd64/arm64) and pushes to `ghcr.io/infratify/arena-server` +
+`ghcr.io/infratify/arena-avatar` on `v*` tags or manual dispatch; `v1.0.0` + `latest` are
+live. The `Infratify` org name is lowercased in the workflow (GHCR refs must be lowercase).
+One manual step remains before students can pull: flip the two GHCR packages to **public**
+in the org's package settings.
+
 Done:
 1. ✅ **Prototype proven first** — with the real `docker run` flow via
    `scripts/e2e.sh` (two simulated students on one host). **No `docker compose`** was
@@ -203,12 +212,15 @@ Done:
    **not** AOF (a plain `redis` re-run boots `appendonly no` and loads `dump.rdb`,
    ignoring the AOF).
 
+6. ✅ **Published to GHCR** — `.github/workflows/publish-images.yml` (matrix build,
+   multi-arch amd64/arm64) pushes `ghcr.io/infratify/arena-server` +
+   `ghcr.io/infratify/arena-avatar` on `v*` tags / manual dispatch; `v1.0.0` + `latest`
+   are live. Remaining manual step: set the GHCR packages **public** so students pull
+   unauthenticated.
+
 Remaining:
-6. ⬜ **Publish** `infratify/arena-server` + `infratify/arena-avatar` to the registry
-   students pull from (Docker Hub public, or the shared ECR); pin tags. Images build
-   locally today — until published, build from source (`docker build`).
 7. ⬜ **Sync the slides** (`outlines/2026/docker3.md` + `slides/2026/docker3/`) to the
-   pinned contract once images are published.
+   pinned contract — the pull refs are now GHCR-prefixed (`ghcr.io/infratify/arena-*`).
 
 ## Guardrails
 
