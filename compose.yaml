@@ -1,0 +1,38 @@
+# compose.yaml — the whole arena in ONE file (Docker 4 payoff)
+#
+# One `docker compose up` == the project network + the `me` volume + all three
+# containers, wired together. `docker compose down` == it all goes away (the
+# volume stays — that's the pet). This replaces the Docker 3 hand-wiring:
+#   docker network create arena
+#   docker run ... profile   (redis, -v me:/data)
+#   docker run ... server    (arena-server)
+#   docker run ... avatar    (-p 8080:8080 -e COLOR -e SERVER --network arena)
+# The `docker network create` + every `--network arena` flag DISAPPEAR: compose
+# gives the project its own network and services find each other BY NAME.
+#
+# SOURCE OF TRUTH — shared with the slides (slides/2026/docker4/). The Docker 4
+# deck quotes these blocks VERBATIM. Rename a service / image / port / env / the
+# volume here and you MUST update outlines/2026/docker4.md + the deck.
+# Proven end-to-end by scripts/e2e-compose.sh. Compose v2 (no `version:` key).
+services:
+  profile:
+    image: redis
+    volumes:
+      - me:/data
+
+  server:
+    image: ghcr.io/infratify/arena-server
+
+  avatar:
+    image: ghcr.io/infratify/arena-avatar
+    ports:
+      - "8080:8080"
+    environment:
+      COLOR: cyan
+      SERVER: server:3000
+    depends_on:
+      - profile
+      - server
+
+volumes:
+  me:

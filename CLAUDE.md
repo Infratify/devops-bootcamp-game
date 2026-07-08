@@ -142,6 +142,21 @@ profile store (volume `me`) → **persists** across restarts; `COLOR` is passed 
 `-e COLOR` → **per-run config**, ephemeral. The avatar reads `nama` from `profile`
 by name (which is *why* it needs the network), and takes `COLOR`/`SERVER` from env.
 
+### Docker 4 — `compose.yaml` (the payoff; also pinned + shared with the slides)
+
+`compose.yaml` (repo root) is the **Docker 4** artifact: the same arena, declared
+in one file, so `docker compose up` replaces the whole hand-wired `docker run`
+stack above. The Docker 4 deck (`slides/2026/docker4/`) quotes its blocks
+**verbatim** — same rename-is-a-breaking-change rule. It is proven end-to-end by
+`scripts/e2e-compose.sh` (one-command up → project network + `me` volume + 3
+containers auto-created; `profile` **and** `server` resolved **by name** with **no**
+`docker network create`; pets/cattle survival across `down`/`up`; short-form
+`depends_on` verified race-safe over 3× down/up — no `healthcheck` condition
+needed). Compose **v2** (no `version:` key). Local mode uses `SERVER: server:3000`
+(the `server` service, reached by name on the project network — it carries **no**
+published port, which is itself the by-name lesson); the class breakout points
+`SERVER` at the instructor's `<ip>:3000` instead.
+
 - **Owner/namespace:** `infratify` (matches the bootcamp glossary; `infratify.com` domain).
   Images are published to GHCR: `ghcr.io/infratify/arena-{server,avatar}` (the `Infratify`
   org is lowercased for the registry).
