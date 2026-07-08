@@ -157,6 +157,12 @@ needed). Compose **v2** (no `version:` key). Local mode uses `SERVER: server:300
 published port, which is itself the by-name lesson); the class breakout points
 `SERVER` at the instructor's `<ip>:3000` instead.
 
+`compose.frame.yaml` (repo root) is the LO2 build-it-yourself scaffold: the same
+file with the service names + indentation given but each block left as a
+`# isi blok: …` label. Learners fill the four blocks (Amali 2) — filled correctly
+it reproduces `compose.yaml` exactly. Keep the two in lockstep: any block edit to
+`compose.yaml` must update the matching label here (and the slides).
+
 - **Owner/namespace:** `infratify` (matches the bootcamp glossary; `infratify.com` domain).
   Images are published to GHCR: `ghcr.io/infratify/arena-{server,avatar}` (the `Infratify`
   org is lowercased for the registry).
