@@ -96,8 +96,14 @@ This split is a feature: every student does LO2 + LO3 hands-on, and only the
 
 3. **`infratify/arena-avatar`** *(I build + publish)* — each student's client.
    - Env: `COLOR` (avatar colour, per-run), `SERVER` (`ip:port` of the instructor
-     room), `REDIS_HOST` (default `profile`). **No `NAME` env** — the name is read
-     from the profile store (volume), so the persistent identity survives restarts.
+     room), `REDIS_HOST` (default `profile`), `SLOT` (optional, v1.1.0 — save-slot
+     key prefix inside the shared remember-box: `SLOT: "2"` → keys `2:nama` etc.;
+     unset = bare keys, the unchanged Docker 3 flow), `NAME` (optional, v1.1.0 —
+     seeds/overrides `nama` and is **written through to the save**, so identity
+     still lives in the volume and survives restarts). In the Docker 3 flow
+     (no `NAME`) the name is read from the profile store only — that env-vs-volume
+     lesson is unchanged; Docker 4 uses `NAME`/`SLOT` so the second avatar needs
+     no `docker exec` and no second profile service.
    - On start: connect to `profile` (redis) **by name** over `arena` → read `nama`
      (+ colour fallback) → connect to `SERVER` WebSocket → serve a small canvas
      client at `localhost:8080` where the student sees the room and moves
@@ -157,47 +163,41 @@ needed). Compose **v2** (no `version:` key). Local mode uses `SERVER: server:300
 published port, which is itself the by-name lesson); the class breakout points
 `SERVER` at the instructor's `<ip>:3000` instead.
 
-`compose.frame.yaml` (repo root) is the LO2 build-it-yourself scaffold: the same
-file with the service names + indentation given but each block left as a
-`# isi blok: …` label. Learners fill the four blocks (Amali 2) — filled correctly
-it reproduces `compose.yaml` exactly. Keep the two in lockstep: any block edit to
-`compose.yaml` must update the matching label here (and the slides).
+`compose.frame.yaml` (repo root) was the LO2 build-it-yourself scaffold (fill
+the `# isi blok: …` labels to reproduce `compose.yaml`). **Retired from the
+Docker 4 deck 2026-07-09** — LO2 now extends the finalized file (second avatar)
+instead of rebuilding it, so nothing references the frame anymore; kept on disk
+for reference only.
 
-**Second-avatar extension (Docker 4 Amali 5/6 — STUDENT EDIT, pinned, NOT in the
-canonical file).** The Docker 4 deck teaches copying the two blocks and pointing
-the copy at its own remember-box via the avatar's `REDIS_HOST` env (default
-`profile`). Two avatars must **never** share one profile — they'd clobber each
-other's `x`/`y`/`score` keys. Slides quote this extension verbatim; proven by
-`scripts/e2e-avatar2.sh` (2026-07-09: one `up -d` → 5 services, both `:8080` +
-`:8081` serve, distinct namas in the roster, writes isolated per profile):
+**Second-avatar extension (Docker 4 Amali 4/5/6 — STUDENT EDIT, pinned, NOT in
+the canonical file).** The save-slot model (v1.1.0): ONE profile, ONE volume —
+like one memory card holding several save files. `SLOT: "2"` gives the copy its
+own key namespace (two avatars must never share bare keys — `x`/`y`/`score`
+would clobber) and `NAME` puts the nameplate in the compose file, so there is
+**no second profile service, no second volume, and no `docker exec`** anywhere
+in Docker 4. Slides quote this block verbatim; proven by
+`scripts/e2e-avatar2.sh` (2026-07-09, locally built image: one `up -d` → 4
+services, both ports serve, roster shows the `NAME` with zero exec, writes
+isolated under `2:*`, bare keys still avatar1's):
 
 ```yaml
-  profile2:
-    image: redis
-    volumes:
-      - me2:/data
-
   avatar2:
     image: ghcr.io/infratify/arena-avatar
     ports:
       - "8081:8080"          # 8080 already taken on the host
     environment:
       COLOR: red             # any different colour
+      NAME: Ariff            # nameplate — seeds save file 2
+      SLOT: "2"              # its own save file in volume me
       SERVER: server:3000    # class arena: "<instructor-ip>:3000"
-      REDIS_HOST: profile2   # its OWN remember-box
     depends_on:
-      - profile2
+      - profile
       - server
-
-# and at top level:
-volumes:
-  me:
-  me2:
 ```
 
-The class-arena join (Docker 4 Amali 6) seeds the nameplate first:
-`docker compose exec profile2 redis-cli SET nama "Name"` — fresh compose project
-volumes start empty, so an unseeded avatar shows `tanpa-nama` on the projector.
+The Amali 5 solo challenge repeats the pattern unaided (`avatar3`, `"8082:8080"`,
+`SLOT: "3"`). Students must run `docker compose pull` once before Amali 4 —
+Docker 3 left a pre-`SLOT`/`NAME` `arena-avatar:latest` in their local cache.
 
 - **Owner/namespace:** `infratify` (matches the bootcamp glossary; `infratify.com` domain).
   Images are published to GHCR: `ghcr.io/infratify/arena-{server,avatar}` (the `Infratify`

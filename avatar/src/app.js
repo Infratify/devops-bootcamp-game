@@ -13,10 +13,17 @@ const send = (ws, msg) => { try { if (ws.readyState === 1) ws.send(msg); } catch
 const rid = () => 'a' + Math.random().toString(36).slice(2, 10);
 
 export async function startAvatar({ env = {}, storeFactory, roomFactory, port = 8080, publicDir = PUBLIC } = {}) {
-  const store = await storeFactory(env.REDIS_HOST || 'profile');   // throws → loud fail in index.js
+  // SLOT namespaces this avatar's keys inside a shared remember-box (the
+  // save-file model, Docker 4); unset = bare keys, the unchanged Docker 3 flow.
+  const slot = typeof env.SLOT === 'string' ? env.SLOT.trim() : '';
+  const store = await storeFactory(env.REDIS_HOST || 'profile', slot ? `${slot}:` : '');   // throws → loud fail in index.js
   const char = await loadOrInit(store, { colour: env.COLOR });
-  const self = { id: rid(), nama: char.nama || 'tanpa-nama', colour: char.colour, x: char.x, y: char.y, score: char.score };
-  if (!char.nama) {
+  // NAME seeds/overrides nama and is written through, so the save file still
+  // remembers it after the env is gone. The store copy stays the durable home.
+  const envName = typeof env.NAME === 'string' && env.NAME.trim() ? env.NAME.trim() : null;
+  if (envName && envName !== char.nama) { await store.set('nama', envName); await store.save(); }
+  const self = { id: rid(), nama: envName || char.nama || 'tanpa-nama', colour: char.colour, x: char.x, y: char.y, score: char.score };
+  if (!envName && !char.nama) {
     console.warn('[arena] No "nama" in your remember-box yet. Set one with:\n  docker exec profile redis-cli SET nama "YourName"');
   }
 

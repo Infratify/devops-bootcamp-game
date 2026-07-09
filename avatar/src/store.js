@@ -1,6 +1,6 @@
 import { createClient } from 'redis';
 
-export async function createRedisStore(host, { connectTimeout = 3000, maxRetries = 3 } = {}) {
+export async function createRedisStore(host, { connectTimeout = 3000, maxRetries = 3, keyPrefix = '' } = {}) {
   const client = createClient({
     url: `redis://${host}:6379`,
     socket: {
@@ -18,8 +18,8 @@ export async function createRedisStore(host, { connectTimeout = 3000, maxRetries
     throw e;
   }
   return {
-    async get(k) { try { return await client.get(k); } catch { return null; } },
-    async set(k, v) { try { return await client.set(k, v); } catch { return undefined; } },
+    async get(k) { try { return await client.get(keyPrefix + k); } catch { return null; } },
+    async set(k, v) { try { return await client.set(keyPrefix + k, v); } catch { return undefined; } },
     async save() { try { return await client.save(); } catch { /* SAVE can fail if a bgsave is mid-flight; safe to skip */ } },
     async quit() { try { await client.quit(); } catch { /* ignore */ } },
   };

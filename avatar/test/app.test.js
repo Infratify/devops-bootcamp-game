@@ -65,6 +65,53 @@ test('serves browser, moves, increments score, persists, forwards to room', asyn
   }
 });
 
+test('SLOT namespaces the store; NAME seeds the save and wins the nameplate', async () => {
+  const store = fakeStore();
+  const captured = {};
+  const sink = {};
+  const app = await startAvatar({
+    env: { COLOR: 'red', SERVER: '', SLOT: '2', NAME: 'Dua' },
+    storeFactory: async (host, prefix) => { captured.host = host; captured.prefix = prefix; return store; },
+    roomFactory: fakeRoomFactory(sink), port: 0,
+  });
+  try {
+    assert.equal(captured.host, 'profile', 'default remember-box host');
+    assert.equal(captured.prefix, '2:', 'SLOT becomes the key prefix');
+    assert.equal(store.data.nama, 'Dua', 'NAME written through to the save');
+    const ws = new WebSocket(`ws://localhost:${app.port}`);
+    const nextMsg = collectMessages(ws);
+    await new Promise((r) => ws.on('open', r));
+    const you = await nextMsg((m) => m.t === 'you');
+    assert.equal(you.nama, 'Dua');
+    ws.close();
+  } finally {
+    await app.close();
+  }
+});
+
+test('no SLOT/NAME → bare keys and the stored nama (unchanged Docker 3 flow)', async () => {
+  const store = fakeStore({ nama: 'Ariff' });
+  const captured = {};
+  const sink = {};
+  const app = await startAvatar({
+    env: { COLOR: 'cyan', SERVER: '' },
+    storeFactory: async (host, prefix) => { captured.prefix = prefix; return store; },
+    roomFactory: fakeRoomFactory(sink), port: 0,
+  });
+  try {
+    assert.equal(captured.prefix, '', 'unset SLOT = bare keys');
+    assert.equal(store.data.nama, 'Ariff', 'stored nama untouched');
+    const ws = new WebSocket(`ws://localhost:${app.port}`);
+    const nextMsg = collectMessages(ws);
+    await new Promise((r) => ws.on('open', r));
+    const you = await nextMsg((m) => m.t === 'you');
+    assert.equal(you.nama, 'Ariff');
+    ws.close();
+  } finally {
+    await app.close();
+  }
+});
+
 test('re-sends you with the server-assigned id on welcome (fixes stale you-ring)', async () => {
   const store = fakeStore({ nama: 'Ariff' });
   const sink = {};

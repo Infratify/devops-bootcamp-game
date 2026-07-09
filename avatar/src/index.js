@@ -13,7 +13,7 @@ const BANNER =
 let app = null;
 startAvatar({
   env: process.env,
-  storeFactory: (host) => createRedisStore(host),
+  storeFactory: (host, keyPrefix) => createRedisStore(host, { keyPrefix }),
   roomFactory: (addr, handlers) => createRoomLink(addr, handlers),
 })
   .then((a) => { app = a; console.log(`[arena] avatar view: http://localhost:${a.port}`); })
