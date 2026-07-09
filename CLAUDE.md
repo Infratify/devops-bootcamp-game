@@ -163,6 +163,42 @@ file with the service names + indentation given but each block left as a
 it reproduces `compose.yaml` exactly. Keep the two in lockstep: any block edit to
 `compose.yaml` must update the matching label here (and the slides).
 
+**Second-avatar extension (Docker 4 Amali 5/6 — STUDENT EDIT, pinned, NOT in the
+canonical file).** The Docker 4 deck teaches copying the two blocks and pointing
+the copy at its own remember-box via the avatar's `REDIS_HOST` env (default
+`profile`). Two avatars must **never** share one profile — they'd clobber each
+other's `x`/`y`/`score` keys. Slides quote this extension verbatim; proven by
+`scripts/e2e-avatar2.sh` (2026-07-09: one `up -d` → 5 services, both `:8080` +
+`:8081` serve, distinct namas in the roster, writes isolated per profile):
+
+```yaml
+  profile2:
+    image: redis
+    volumes:
+      - me2:/data
+
+  avatar2:
+    image: ghcr.io/infratify/arena-avatar
+    ports:
+      - "8081:8080"          # 8080 already taken on the host
+    environment:
+      COLOR: red             # any different colour
+      SERVER: server:3000    # class arena: "<instructor-ip>:3000"
+      REDIS_HOST: profile2   # its OWN remember-box
+    depends_on:
+      - profile2
+      - server
+
+# and at top level:
+volumes:
+  me:
+  me2:
+```
+
+The class-arena join (Docker 4 Amali 6) seeds the nameplate first:
+`docker compose exec profile2 redis-cli SET nama "Name"` — fresh compose project
+volumes start empty, so an unseeded avatar shows `tanpa-nama` on the projector.
+
 - **Owner/namespace:** `infratify` (matches the bootcamp glossary; `infratify.com` domain).
   Images are published to GHCR: `ghcr.io/infratify/arena-{server,avatar}` (the `Infratify`
   org is lowercased for the registry).
