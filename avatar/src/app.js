@@ -13,14 +13,19 @@ const send = (ws, msg) => { try { if (ws.readyState === 1) ws.send(msg); } catch
 const rid = () => 'a' + Math.random().toString(36).slice(2, 10);
 
 export async function startAvatar({ env = {}, storeFactory, roomFactory, port = 8080, publicDir = PUBLIC } = {}) {
-  // SLOT namespaces this avatar's keys inside a shared remember-box (the
-  // save-file model, Docker 4); unset = bare keys, the unchanged Docker 3 flow.
-  const slot = typeof env.SLOT === 'string' ? env.SLOT.trim() : '';
-  const store = await storeFactory(env.REDIS_HOST || 'profile', slot ? `${slot}:` : '');   // throws → loud fail in index.js
-  const char = await loadOrInit(store, { colour: env.COLOR });
-  // NAME seeds/overrides nama and is written through, so the save file still
-  // remembers it after the env is gone. The store copy stays the durable home.
+  // A second avatar on the same machine needs its own save file inside the
+  // shared remember-box (bare keys would clobber x/y/score). NAME is that key:
+  // "your name IS your save file" — the student already sets NAME for the
+  // nameplate, so it does double duty and no SLOT is needed. SLOT stays only as
+  // an explicit override (two avatars, SAME name). Neither set = bare keys, the
+  // unchanged Docker 3 flow.
   const envName = typeof env.NAME === 'string' && env.NAME.trim() ? env.NAME.trim() : null;
+  const slot = typeof env.SLOT === 'string' ? env.SLOT.trim() : '';
+  const key = slot || envName || '';                                         // SLOT wins, else NAME, else bare
+  const store = await storeFactory(env.REDIS_HOST || 'profile', key ? `${key}:` : '');   // throws → loud fail in index.js
+  const char = await loadOrInit(store, { colour: env.COLOR });
+  // NAME is also written through as `nama`, so the save file still remembers it
+  // after the env is gone. The store copy stays the durable home.
   if (envName && envName !== char.nama) { await store.set('nama', envName); await store.save(); }
   const self = { id: rid(), nama: envName || char.nama || 'tanpa-nama', colour: char.colour, x: char.x, y: char.y, score: char.score };
   if (!envName && !char.nama) {

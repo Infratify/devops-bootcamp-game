@@ -96,14 +96,19 @@ This split is a feature: every student does LO2 + LO3 hands-on, and only the
 
 3. **`infratify/arena-avatar`** *(I build + publish)* — each student's client.
    - Env: `COLOR` (avatar colour, per-run), `SERVER` (`ip:port` of the instructor
-     room), `REDIS_HOST` (default `profile`), `SLOT` (optional, v1.1.0 — save-slot
-     key prefix inside the shared remember-box: `SLOT: "2"` → keys `2:nama` etc.;
-     unset = bare keys, the unchanged Docker 3 flow), `NAME` (optional, v1.1.0 —
-     seeds/overrides `nama` and is **written through to the save**, so identity
-     still lives in the volume and survives restarts). In the Docker 3 flow
-     (no `NAME`) the name is read from the profile store only — that env-vs-volume
-     lesson is unchanged; Docker 4 uses `NAME`/`SLOT` so the second avatar needs
-     no `docker exec` and no second profile service.
+     room), `REDIS_HOST` (default `profile`), `NAME` (optional, v1.1.0 —
+     seeds/overrides `nama`, **written through to the save** so identity lives in
+     the volume and survives restarts; **and becomes this avatar's save-file key
+     prefix** inside the shared remember-box: `NAME: "Dua"` → keys `Dua:nama`,
+     `Dua:x`, `Dua:score` etc. — "your name is your save file"), `SLOT` (optional,
+     v1.2.0 — explicit key-prefix override for the rare case of two avatars with
+     the **same** `NAME` on one machine; `SLOT: "2"` → keys `2:*`, and wins over
+     `NAME` when both are set). Precedence: `SLOT` → else `NAME` → else bare keys.
+     In the Docker 3 flow (no `NAME`, no `SLOT`) the name is read from the profile
+     store only and keys stay bare — that env-vs-volume lesson is unchanged;
+     Docker 4 gives the second avatar its own save file **just by setting `NAME`**
+     (which it wants for the nameplate anyway), so there is no `SLOT` to teach, no
+     `docker exec`, and no second profile service.
    - On start: connect to `profile` (redis) **by name** over `arena` → read `nama`
      (+ colour fallback) → connect to `SERVER` WebSocket → serve a small canvas
      client at `localhost:8080` where the student sees the room and moves
@@ -170,15 +175,17 @@ instead of rebuilding it, so nothing references the frame anymore; kept on disk
 for reference only.
 
 **Second-avatar extension (Docker 4 Amali 4/5/6 — STUDENT EDIT, pinned, NOT in
-the canonical file).** The save-slot model (v1.1.0): ONE profile, ONE volume —
-like one memory card holding several save files. `SLOT: "2"` gives the copy its
-own key namespace (two avatars must never share bare keys — `x`/`y`/`score`
-would clobber) and `NAME` puts the nameplate in the compose file, so there is
-**no second profile service, no second volume, and no `docker exec`** anywhere
-in Docker 4. Slides quote this block verbatim; proven by
-`scripts/e2e-avatar2.sh` (2026-07-09, locally built image: one `up -d` → 4
-services, both ports serve, roster shows the `NAME` with zero exec, writes
-isolated under `2:*`, bare keys still avatar1's):
+the canonical file).** The save-file model (v1.2.0): ONE profile, ONE volume —
+like one memory card holding several save files. A different `NAME` gives the
+copy its own key namespace automatically ("your name is your save file" — two
+avatars must never share bare keys, since `x`/`y`/`score` would clobber), and
+that same `NAME` is the nameplate. So the second avatar is **just three edits a
+DevOps beginner can see** — a different `COLOR`, a different `NAME`, a different
+host `port` — with **no `SLOT` to explain**, no second profile service, no
+second volume, and no `docker exec` anywhere in Docker 4. Slides quote this
+block verbatim; proven by `scripts/e2e-avatar2.sh` (2026-07-09, locally built
+image: one `up -d` → 4 services, both ports serve, roster shows the `NAME` with
+zero exec, writes isolated under `Dua:*`, bare keys still avatar1's):
 
 ```yaml
   avatar2:
@@ -187,8 +194,7 @@ isolated under `2:*`, bare keys still avatar1's):
       - "8081:8080"          # 8080 already taken on the host
     environment:
       COLOR: red             # any different colour
-      NAME: Ariff            # nameplate — seeds save file 2
-      SLOT: "2"              # its own save file in volume me
+      NAME: Dua              # nameplate AND your own save file in volume me
       SERVER: server:3000    # class arena: "<instructor-ip>:3000"
     depends_on:
       - profile
@@ -196,8 +202,10 @@ isolated under `2:*`, bare keys still avatar1's):
 ```
 
 The Amali 5 solo challenge repeats the pattern unaided (`avatar3`, `"8082:8080"`,
-`SLOT: "3"`). Students must run `docker compose pull` once before Amali 4 —
-Docker 3 left a pre-`SLOT`/`NAME` `arena-avatar:latest` in their local cache.
+a third `NAME`). Students must run `docker compose pull` once before Amali 4 —
+Docker 3 left a pre-`NAME` `arena-avatar:latest` in their local cache. (`SLOT`
+remains an unadvertised override for the edge case of two avatars sharing the
+same `NAME` on one machine — not taught, not in the pinned block.)
 
 - **Owner/namespace:** `infratify` (matches the bootcamp glossary; `infratify.com` domain).
   Images are published to GHCR: `ghcr.io/infratify/arena-{server,avatar}` (the `Infratify`

@@ -65,18 +65,18 @@ test('serves browser, moves, increments score, persists, forwards to room', asyn
   }
 });
 
-test('SLOT namespaces the store; NAME seeds the save and wins the nameplate', async () => {
+test('NAME becomes the save-file key; seeds the save and wins the nameplate (no SLOT needed)', async () => {
   const store = fakeStore();
   const captured = {};
   const sink = {};
   const app = await startAvatar({
-    env: { COLOR: 'red', SERVER: '', SLOT: '2', NAME: 'Dua' },
+    env: { COLOR: 'red', SERVER: '', NAME: 'Dua' },
     storeFactory: async (host, prefix) => { captured.host = host; captured.prefix = prefix; return store; },
     roomFactory: fakeRoomFactory(sink), port: 0,
   });
   try {
     assert.equal(captured.host, 'profile', 'default remember-box host');
-    assert.equal(captured.prefix, '2:', 'SLOT becomes the key prefix');
+    assert.equal(captured.prefix, 'Dua:', 'NAME becomes the key prefix — your name is your save file');
     assert.equal(store.data.nama, 'Dua', 'NAME written through to the save');
     const ws = new WebSocket(`ws://localhost:${app.port}`);
     const nextMsg = collectMessages(ws);
@@ -87,6 +87,22 @@ test('SLOT namespaces the store; NAME seeds the save and wins the nameplate', as
   } finally {
     await app.close();
   }
+});
+
+test('SLOT overrides NAME as the key prefix (explicit save-slot for same-name avatars)', async () => {
+  const store = fakeStore();
+  const captured = {};
+  const sink = {};
+  const app = await startAvatar({
+    env: { COLOR: 'red', SERVER: '', SLOT: '2', NAME: 'Dua' },
+    storeFactory: async (host, prefix) => { captured.prefix = prefix; return store; },
+    roomFactory: fakeRoomFactory(sink), port: 0,
+  });
+  try {
+    assert.equal(captured.prefix, '2:', 'SLOT wins over NAME when both are set');
+    assert.equal(store.data.nama, 'Dua', 'NAME still written through to the save');
+    await app.close();
+  } catch (e) { await app.close(); throw e; }
 });
 
 test('no SLOT/NAME → bare keys and the stored nama (unchanged Docker 3 flow)', async () => {

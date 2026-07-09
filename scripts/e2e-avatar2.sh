@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # E2E proof for the Docker 4 STUDENT EDIT (Amali 4/5/6): extend the canonical
-# compose.yaml with a second avatar using the SAVE-SLOT model. Pinned extension
-# (slides quote verbatim) — ONE profile, ONE volume, no exec:
-#   avatar2 — arena-avatar, ports "8081:8080", SLOT: "2" (its own save file in
-#             the shared remember-box; two avatars must never share bare keys —
-#             x/y/score would clobber), NAME (nameplate, written through to the
+# compose.yaml with a second avatar. Pinned extension (slides quote verbatim) —
+# ONE profile, ONE volume, no exec, NO SLOT:
+#   avatar2 — arena-avatar, ports "8081:8080", NAME (nameplate AND its own save
+#             file in the shared remember-box — "your name is your save file", so
+#             x/y/score never clobber avatar1's bare keys; written through to the
 #             save), COLOR different, SERVER local or "<instructor-ip>:3000".
 # Proves: one `up -d` → 4 services; both :8080/:8081 serve; roster shows the
-# NAME env with zero exec; avatar2 writes land under 2:* only.
+# NAME env with zero exec; avatar2 writes land under Dua:* only.
 #
 # Builds the avatar image locally so the proof covers the working tree (the
 # published GHCR image must carry the same code — publish before class).
@@ -34,7 +34,6 @@ ext = f'''
     environment:
       COLOR: red
       NAME: Dua
-      SLOT: "2"
       SERVER: server:3000
     depends_on:
       - profile
@@ -71,21 +70,21 @@ echo "OK 4 services running"
 echo "=== 2. both avatars serve ==="
 for i in $(seq 1 20); do up8080 && up8081 && break; sleep 1; done
 up8080 || fail ":8080 not serving"
-up8081 || fail ":8081 not serving (SLOT/NAME env broke boot?)"
+up8081 || fail ":8081 not serving (NAME env broke boot?)"
 echo "OK :8080 + :8081 serving"
 
 echo "=== 3. NAME lands in the roster with ZERO exec ==="
 ok=0; for i in $(seq 1 8); do spectate "Dua" 0 >/dev/null 2>&1 && { ok=1; break; }; sleep 1; done
 [ "$ok" = 1 ] || fail "roster missing 'Dua' (NAME env not honoured?)"
-N2=$($DC exec -T profile redis-cli GET "2:nama")
-[ "$N2" = "Dua" ] || fail "NAME not written through to the save (2:nama='$N2')"
-echo "OK roster shows Dua; 2:nama persisted"
+N2=$($DC exec -T profile redis-cli GET "Dua:nama")
+[ "$N2" = "Dua" ] || fail "NAME not written through to the save (Dua:nama='$N2')"
+echo "OK roster shows Dua; Dua:nama persisted"
 
-echo "=== 4. save-slot isolation: avatar2 writes ONLY under 2:* ==="
+echo "=== 4. save-slot isolation: avatar2 writes ONLY under Dua:* ==="
 move 8081; sleep 2
-S2=$($DC exec -T profile redis-cli GET "2:score"); S1=$($DC exec -T profile redis-cli GET score)
-echo "2:score=${S2:-<none>} score=${S1:-<none>}"
-[ "${S2:-0}" -ge 1 ] || fail "avatar2 move did not persist under 2:score"
+S2=$($DC exec -T profile redis-cli GET "Dua:score"); S1=$($DC exec -T profile redis-cli GET score)
+echo "Dua:score=${S2:-<none>} score=${S1:-<none>}"
+[ "${S2:-0}" -ge 1 ] || fail "avatar2 move did not persist under Dua:score"
 [ "${S1:-0}" -eq 0 ] 2>/dev/null || [ -z "${S1:-}" ] || fail "avatar2 leaked into bare score ($S1)"
 echo "=== 5. bare keys still belong to avatar1 (Docker 3 flow unchanged) ==="
 move 8080; sleep 2
