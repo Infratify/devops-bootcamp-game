@@ -1,0 +1,65 @@
+# Local dev/test compose — BUILDS both images from this working tree instead of pulling
+# ghcr.io/infratify/arena-*, so you can see code changes (e.g. the jump/punch/interact
+# replication fix) before publishing to GHCR.
+#
+# This is NOT the pinned Docker-4 artifact. That's compose.yaml — it pulls the published
+# images and is quoted verbatim by the slides. Keep the two separate; never point the
+# class at this file. Differences here are deliberate and dev-only:
+#   • both arena-* services BUILD locally (arena-server:local / arena-avatar:local)
+#   • the server publishes :3000 so you can watch the projector (compose.yaml hides it
+#     on purpose — that "reached by name only" is the LO3 lesson)
+#   • a second avatar is included so you can actually watch an action replicate
+#
+# Run:
+#   docker compose -f compose.local.yaml up --build
+#     projector : http://localhost:3000     (the shared room — everyone's avatars)
+#     avatar 1  : http://localhost:8080      (cyan,  "AVATAR1")
+#     avatar 2  : http://localhost:8081      (red,   "Dua")
+#
+# Test the action-replication fix: open all three tabs, then on the avatar-1 tab press
+#   Space (jump) / R (punch) / E (interact)  — even the FIRST one must now replay on the
+#   projector AND on avatar 2. (Move with arrows/WASD, hold Shift to run.)
+#
+# Tear down (drops the volume too, for a clean re-test):
+#   docker compose -f compose.local.yaml down -v
+
+services:
+  profile:
+    image: redis
+    volumes:
+      - me:/data
+
+  server:
+    build: ./server
+    image: arena-server:local
+    ports:
+      - "3000:3000"          # dev-only: publish the projector so you can watch at localhost:3000
+
+  avatar:
+    build: ./avatar
+    image: arena-avatar:local
+    ports:
+      - "8080:8080"
+    environment:
+      NAME: AVATAR1
+      COLOR: cyan
+      SERVER: server:3000
+    depends_on:
+      - profile
+      - server
+
+  avatar2:
+    build: ./avatar          # same context/cache as `avatar`; second run is instant
+    image: arena-avatar:local
+    ports:
+      - "8081:8080"          # 8080 already taken on the host
+    environment:
+      NAME: Dua
+      COLOR: red
+      SERVER: server:3000
+    depends_on:
+      - profile
+      - server
+
+volumes:
+  me:
