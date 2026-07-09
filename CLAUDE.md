@@ -112,8 +112,12 @@ This split is a feature: every student does LO2 + LO3 hands-on, and only the
    - On start: connect to `profile` (redis) **by name** over `arena` → read `nama`
      (+ colour fallback) → connect to `SERVER` WebSocket → serve a small canvas
      client at `localhost:8080` where the student sees the room and moves
-     (arrows/WASD, **8-directional** — hold two keys for diagonals). Movement +
-     score changes write back to redis (so the volume matters).
+     (arrows/WASD, **8-directional** — hold two keys for diagonals; **Shift** to
+     run). Movement + score changes write back to redis (so the volume matters).
+     Three **cosmetic** one-shot actions round out the feel — **Space** jump,
+     **E** interact, **R** punch — each a real sprite-sheet animation that plays
+     once and is relayed to every viewer (projector + other students). Actions
+     change no position/score, so they never affect the volume/score lessons.
    - Must **fail loudly and clearly** if it can't resolve `profile` (that failure
      IS the network lesson) and **degrade gracefully** if `SERVER` is unreachable
      (still runs locally so the volume/network labs work without the shared room).
@@ -256,6 +260,37 @@ moving continuously ≈ **4.6% of one CPU core**, ~69 MB RSS, steady 20 roster
 broadcasts/sec of ~4.6 KB — comfortable headroom for a full cohort. Specs/plan:
 `docs/superpowers/specs/2026-07-06-arena-sprite-overhaul-design.md`,
 `docs/superpowers/plans/2026-07-06-arena-sprite-overhaul.md`.
+
+**Smooth motion + action animations (2026-07-09).** Fixed the walk *stutter* in
+three layers (all verified with a deterministic node harness driving the real
+`update()` + a Playwright headless-Chromium drive of the preview — steady-state
+velocity spread dropped from ~240px/s to ~40–70):
+  1. **Snapshot interpolation** replaced the old `c.x += dx*0.25`-per-frame tween
+     (frame-rate-dependent, velocity-pulsing): buffer the last ~12 `{t,x,y}`, render
+     `INTERP_DELAY≈110ms` behind newest, lerp between the two bracketing snapshots.
+  2. **Windowed gait** (`bufferSpeed` over `GAIT_WINDOW≈150ms`) chooses idle/walk/run
+     instead of the raw per-segment velocity — the raw velocity reads 0 on the ~1-in-6
+     snapshot pairs that are equal (aliasing), which was flashing a steady walk to idle
+     every ~2 steps.
+  3. **Cadence alignment** — the actual root cause of the residual judder: the client
+     sent moves every **60ms** while the server broadcasts every **50ms**, so the two
+     cadences aliased into a periodic freeze/catch-up. Set `SEND_MS=50` (avatar.js) and
+     `STEP=10`/`RUN_STEP=18` (200/360px/s) to match the server's 50ms tick → evenly
+     spaced snapshots → constant-velocity interpolation. A light `SMOOTH_TAU≈80ms`
+     low-pass on top absorbs residual network jitter.
+Interp/gait math is pure + unit-tested in `arena-anim.js` (`sampleBuffer`,
+`bufferSpeed`, `nextGait`). Then wired up the four
+previously-unused animation sheets from `templates/16x32/` (copied into both
+`*/public/sprites/` as `char-{run,jump,attack,interact}.png`): **Shift = run**
+(server steps `RUN_STEP=21`; every client derives run-vs-walk from interpolated
+speed — no roster change), and cosmetic one-shots **Space=jump / R=punch(attack) /
+E=interact**, propagated via **additive** roster fields `act`+`actSeq` (edge-
+triggered; validated in `server/src/room.js`; a driver's own action is overlaid
+locally so it's instant and works even against an old server). All additive/
+backward-compatible — **no image/env/port/volume/network rename**, pinned student
+contract unchanged — but both images must be **rebuilt & republished together**
+(suggest `v1.3.0`). 52 tests green (`avatar` 39 + `server` 13). Not yet
+browser-visually verified in-repo (no headless canvas here) — drive it before class.
 
 **Published to GHCR (2026-07-07).** CI (`.github/workflows/publish-images.yml`) builds both
 images multi-arch (amd64/arm64) and pushes to `ghcr.io/infratify/arena-server` +

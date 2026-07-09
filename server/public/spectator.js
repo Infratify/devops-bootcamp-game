@@ -26,19 +26,21 @@ window.__arena = { players: [], connected: false };
 
   const sprites = new Map();
   function sync(players) {
+    const now = performance.now();
     const seen = new Set();
     for (const p of players) {
       seen.add(p.id);
       let s = sprites.get(p.id);
       if (!s) { s = createAvatar(p); layer.addChild(s.c); s.c.position.set(p.x, p.y); sprites.set(p.id, s); }
-      s.target = { x: p.x, y: p.y };
+      s.pushSnapshot(p.x, p.y, now);
       s.setColour(p.colour); s.setName(p.nama); s.setScore(p.score);
+      s.setAction(p.act, p.actSeq);
     }
     for (const [id, s] of sprites) if (!seen.has(id)) { s.c.destroy({ children: true }); sprites.delete(id); }
     document.getElementById('count').textContent = `${players.length} in the room`;
   }
 
-  app.ticker.add((ticker) => { for (const s of sprites.values()) s.update(ticker.deltaMS); });
+  app.ticker.add((ticker) => { const now = performance.now(); for (const s of sprites.values()) s.update(ticker.deltaMS, now); });
 
   connect();
   function connect() {

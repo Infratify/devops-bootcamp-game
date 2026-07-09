@@ -4,8 +4,9 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { move, isDir } from './movement.js';
+import { STEP, RUN_STEP } from './constants.js';
 import { loadOrInit } from './character.js';
-import { parse, isMove, youMsg, rosterMsg, roomMsg } from './messages.js';
+import { parse, isMove, isAct, youMsg, rosterMsg, roomMsg } from './messages.js';
 
 const PUBLIC = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public');
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css' };
@@ -27,7 +28,7 @@ export async function startAvatar({ env = {}, storeFactory, roomFactory, port = 
   // NAME is also written through as `nama`, so the save file still remembers it
   // after the env is gone. The store copy stays the durable home.
   if (envName && envName !== char.nama) { await store.set('nama', envName); await store.save(); }
-  const self = { id: rid(), nama: envName || char.nama || 'tanpa-nama', colour: char.colour, x: char.x, y: char.y, score: char.score };
+  const self = { id: rid(), nama: envName || char.nama || 'tanpa-nama', colour: char.colour, x: char.x, y: char.y, score: char.score, act: null, actSeq: 0 };
   if (!envName && !char.nama) {
     console.warn('[arena] No "nama" in your remember-box yet. Set one with:\n  docker exec profile redis-cli SET nama "YourName"');
   }
@@ -59,7 +60,11 @@ export async function startAvatar({ env = {}, storeFactory, roomFactory, port = 
   const browsers = new Set();
   const rosterForBrowser = () => {
     if (roomConnected && serverRoster.length) {
-      return serverRoster.some((p) => p.id === self.id) ? serverRoster : [...serverRoster, self];
+      if (!serverRoster.some((p) => p.id === self.id)) return [...serverRoster, self];
+      // Overlay our own latest action onto the echoed self entry so the driver sees
+      // their jump/punch/interact instantly (no round-trip, and even against an old
+      // server that strips act/actSeq). Others still get it via the shared roster.
+      return serverRoster.map((p) => (p.id === self.id ? { ...p, act: self.act, actSeq: self.actSeq } : p));
     }
     return [self];
   };
@@ -73,10 +78,16 @@ export async function startAvatar({ env = {}, storeFactory, roomFactory, port = 
     ws.on('message', (data) => {
       const m = parse(data.toString());
       if (isMove(m) && isDir(m.dir)) {
-        const p = move({ x: self.x, y: self.y }, m.dir);
+        const p = move({ x: self.x, y: self.y }, m.dir, m.run === true ? RUN_STEP : STEP);
         self.x = p.x; self.y = p.y; self.score += 1;
         persist();
         room.sendUpdate({ x: self.x, y: self.y, score: self.score });
+        pushRoster();
+      } else if (isAct(m)) {
+        // Cosmetic one-shot (jump/punch/interact): no position/score change. A bumped
+        // actSeq is the edge every client uses to play the animation exactly once.
+        self.act = m.name; self.actSeq += 1;
+        room.sendUpdate({ act: self.act, actSeq: self.actSeq });
         pushRoster();
       }
     });

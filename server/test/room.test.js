@@ -52,6 +52,12 @@ test('sanitizeUpdate keeps valid score', () => {
   assert.deepEqual(sanitizeUpdate({ score: 5 }), { score: 5 });
 });
 
+test('sanitizeUpdate relays a known action + counter, rejects junk', () => {
+  assert.deepEqual(sanitizeUpdate({ act: 'jump', actSeq: 3 }), { act: 'jump', actSeq: 3 });
+  assert.deepEqual(sanitizeUpdate({ act: 'punch', actSeq: 2.9 }), { act: 'punch', actSeq: 2 }); // floored
+  assert.deepEqual(sanitizeUpdate({ act: 'fly', actSeq: 'x' }), {});                             // bad name + NaN seq
+});
+
 test('sanitizeJoin empty/whitespace colour → default', () => {
   assert.equal(sanitizeJoin({ colour: '   ' }).colour, 'aqua');
 });

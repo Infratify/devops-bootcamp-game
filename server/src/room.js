@@ -25,11 +25,17 @@ export function sanitizeJoin(info = {}) {
   };
 }
 
+// Cosmetic one-shot actions relayed to every viewer. `act` must be a known name and
+// `actSeq` a finite counter — clients replay the animation when actSeq changes.
+const ACTIONS = ['jump', 'punch', 'interact'];
+
 export function sanitizeUpdate(patch = {}) {
   const out = {};
   if (patch.x !== undefined) { const n = clampNum(patch.x, 0, WORLD_W, undefined); if (n !== undefined) out.x = n; }
   if (patch.y !== undefined) { const n = clampNum(patch.y, 0, WORLD_H, undefined); if (n !== undefined) out.y = n; }
   if (patch.score !== undefined) { const n = clampScore(patch.score, undefined); if (n !== undefined) out.score = n; }
+  if (patch.act !== undefined && ACTIONS.includes(patch.act)) out.act = patch.act;
+  if (patch.actSeq !== undefined) { const n = Number(patch.actSeq); if (Number.isFinite(n)) out.actSeq = Math.floor(n); }
   return out;
 }
 

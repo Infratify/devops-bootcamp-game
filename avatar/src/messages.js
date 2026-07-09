@@ -8,3 +8,5 @@ export const roomMsg = (connected) => JSON.stringify({ t: 'room', connected });
 export const joinMsg = (c) => JSON.stringify({ t: 'join', ...c });
 export const updateMsg = (u) => JSON.stringify({ t: 'update', ...u });
 export const isMove = (m) => !!m && m.t === 'move' && typeof m.dir === 'string';
+export const ACTIONS = ['jump', 'punch', 'interact'];
+export const isAct = (m) => !!m && m.t === 'act' && ACTIONS.includes(m.name);

@@ -65,6 +65,31 @@ test('serves browser, moves, increments score, persists, forwards to room', asyn
   }
 });
 
+test('act (jump/punch/interact) bumps actSeq, forwards to the room, leaves score/pos alone', async () => {
+  const store = fakeStore({ nama: 'Ariff', x: '800', y: '500', score: '0' });
+  const sink = {};
+  const app = await startAvatar({ env: { COLOR: 'cyan', SERVER: '' }, storeFactory: async () => store, roomFactory: fakeRoomFactory(sink), port: 0 });
+  try {
+    const ws = new WebSocket(`ws://localhost:${app.port}`);
+    const nextMsg = collectMessages(ws);
+    await new Promise((r) => ws.on('open', r));
+    await nextMsg((m) => m.t === 'you');
+    ws.send(JSON.stringify({ t: 'act', name: 'jump' }));
+    const roster = await nextMsg((m) => m.t === 'roster' && m.players[0].act === 'jump');
+    assert.equal(roster.players[0].actSeq, 1, 'first action → actSeq 1');
+    assert.equal(roster.players[0].score, 0, 'cosmetic action does not score');
+    const fwd = sink.updates.at(-1);
+    assert.equal(fwd.act, 'jump');
+    assert.equal(fwd.actSeq, 1);
+    ws.send(JSON.stringify({ t: 'act', name: 'punch' }));
+    const roster2 = await nextMsg((m) => m.t === 'roster' && m.players[0].act === 'punch');
+    assert.equal(roster2.players[0].actSeq, 2, 'each action increments the edge counter');
+    ws.close();
+  } finally {
+    await app.close();
+  }
+});
+
 test('NAME becomes the save-file key; seeds the save and wins the nameplate (no SLOT needed)', async () => {
   const store = fakeStore();
   const captured = {};

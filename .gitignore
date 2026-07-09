@@ -16,3 +16,6 @@ skills-lock.json
 assets.zip
 st.mp3
 /assets/
+
+# local source art for the avatar sprites (its own git repo); the used sheets are vendored under */public/sprites/
+templates/

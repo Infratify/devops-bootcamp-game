@@ -1,55 +1,77 @@
 // Shared avatar renderer. Uses global PIXI (vendor/pixi.min.js) + pure arena-anim.js.
 // Byte-identical copy in avatar/public/ and server/public/ (vendored, like pixi.min.js).
-import { facingFromVelocity, isMoving, frameAt } from './arena-anim.js';
+import { facingFromVelocity, frameAt, sampleBuffer, bufferSpeed, arc01, actionFrame, nextGait } from './arena-anim.js';
 
-const FRAME = 32, ROWS = 5, COLS = 4;
+const FRAME = 32, ROWS = 5;
 const SPRITE_SCALE = 3;              // 32px art → 96px on screen
-const WALK_FPS = 8, IDLE_FPS = 4;
 const WORLD_W = 1600, WORLD_H = 1000;
 
-let TEX = null; // { idle: Texture[row][col], walk: Texture[row][col] }
+// Looping locomotion sheets, chosen by interpolated speed (px/s).
+const IDLE_FPS = 4, WALK_FPS = 8, RUN_FPS = 12;
+const MOVE_SPEED = 20;               // windowed speed below this = idle
+const RUN_SPEED = 275;              // windowed speed above this = run (walk≈200, run≈360 px/s)
+const GAIT_WINDOW = 150;             // ms: window over which gait speed is measured (smooths zero-gaps)
+const GAIT_CFG = { move: MOVE_SPEED, run: RUN_SPEED, runExit: 0.9 }; // runExit<1 = walk↔run hysteresis
+
+// One-shot action sheets (play once, then fall back to locomotion). fps tuned so each
+// reads at a natural pace; the jump also gets a real vertical arc for a height cue.
+const ACTIONS = { jump: 12, punch: 16, interact: 10 };
+const ACTION_SHEET = { jump: 'jump', punch: 'attack', interact: 'interact' };
+const JUMP_H = 42;                   // px the body lifts at the apex
+
+// Snapshot interpolation: render this far behind the newest snapshot and lerp between
+// the two that bracket it → constant-velocity, refresh-rate-independent motion. The
+// old `c.x += dx*0.25`-per-frame smoother pulsed the velocity and varied with the
+// monitor's refresh rate — that was the stutter.
+const INTERP_DELAY = 110;            // ms
+const SMOOTH_TAU = 80;               // ms low-pass toward the interpolated target (absorbs jitter ripple)
+const BUFFER_MAX = 12;
+
+let TEX = null; // { idle, walk, run, jump, attack, interact }: each Texture[row][col]
 
 function sliceSheet(tex) {
+  const cols = Math.max(1, Math.round(tex.source.width / FRAME));
   const rows = [];
   for (let r = 0; r < ROWS; r++) {
-    const cols = [];
-    for (let c = 0; c < COLS; c++) {
-      cols.push(new PIXI.Texture({
+    const row = [];
+    for (let c = 0; c < cols; c++) {
+      row.push(new PIXI.Texture({
         source: tex.source,
         frame: new PIXI.Rectangle(c * FRAME, r * FRAME, FRAME, FRAME),
       }));
     }
-    rows.push(cols);
+    rows.push(row);
   }
   return rows;
 }
 
-// If the vendored sheet ever fails to load, still show *something* (a plain white
-// body) so an avatar appears — the ring + nameplate keep working. Keeps the hot
-// path in createAvatar/update branch-free (TEX is always populated).
-function makeFallbackTexture() {
+// If a vendored sheet ever fails to load, still show *something* (a plain white body)
+// so an avatar appears — ring + nameplate keep working. Wide enough (7 cols) to index
+// any action frame safely, so the hot path in update stays branch-free.
+function makeFallbackGrid() {
   const cv = document.createElement('canvas');
   cv.width = FRAME; cv.height = FRAME;
   const g = cv.getContext('2d');
   g.fillStyle = '#f2ede0';
   g.beginPath(); g.roundRect(8, 6, 16, 24, 6); g.fill();
-  return PIXI.Texture.from(cv);
+  const fb = PIXI.Texture.from(cv);
+  return Array.from({ length: ROWS }, () => Array.from({ length: 7 }, () => fb));
 }
 
 export async function loadSprites(base = 'sprites/') {
+  const sheets = {
+    idle: 'char-idle.png', walk: 'char-walk.png', run: 'char-run.png',
+    jump: 'char-jump.png', attack: 'char-attack.png', interact: 'char-interact.png',
+  };
   try {
-    const [idle, walk] = await Promise.all([
-      PIXI.Assets.load(base + 'char-idle.png'),
-      PIXI.Assets.load(base + 'char-walk.png'),
-    ]);
-    idle.source.scaleMode = 'nearest';
-    walk.source.scaleMode = 'nearest';
-    TEX = { idle: sliceSheet(idle), walk: sliceSheet(walk) };
+    const names = Object.keys(sheets);
+    const loaded = await Promise.all(names.map((n) => PIXI.Assets.load(base + sheets[n])));
+    TEX = {};
+    names.forEach((n, i) => { loaded[i].source.scaleMode = 'nearest'; TEX[n] = sliceSheet(loaded[i]); });
   } catch (e) {
     console.error('[arena] sprite sheets failed to load — using fallback body', e);
-    const fb = makeFallbackTexture();
-    const grid = Array.from({ length: ROWS }, () => Array.from({ length: COLS }, () => fb));
-    TEX = { idle: grid, walk: grid };
+    const grid = makeFallbackGrid();
+    TEX = { idle: grid, walk: grid, run: grid, jump: grid, attack: grid, interact: grid };
   }
 }
 
@@ -68,6 +90,10 @@ export function createAvatar(p, opts = {}) {
   let colourNum = tintOf(p.colour);
   let facing = { row: 0, flip: false };
   let elapsed = 0;
+  const buf = [];                    // {t,x,y} snapshots for interpolation
+  let gait = { running: false };     // idle/walk/run state (hysteresis on run)
+  let action = null;                 // { name, start } while a one-shot plays
+  let lastActSeq = null;             // edge-detect roster action triggers
 
   const ring = new PIXI.Graphics();
   const you = new PIXI.Graphics(); you.visible = false;
@@ -99,21 +125,72 @@ export function createAvatar(p, opts = {}) {
 
   return {
     c,
-    target: { x: p.x, y: p.y },
+    // Feed an authoritative snapshot (from the roster) into the interpolation buffer.
+    pushSnapshot(x, y, nowMs) {
+      const prev = buf[buf.length - 1];
+      if (prev && nowMs - prev.t < 1) { prev.x = x; prev.y = y; return; } // coalesce same-frame
+      buf.push({ t: nowMs, x, y });
+      if (buf.length > BUFFER_MAX) buf.shift();
+    },
+    // Edge-triggered one-shot action from the roster's {act, actSeq}. First sight sets
+    // the baseline so a stale action isn't replayed when an avatar first appears.
+    setAction(act, actSeq) {
+      if (actSeq == null) return;
+      if (lastActSeq == null) { lastActSeq = actSeq; return; }
+      if (actSeq !== lastActSeq) {
+        lastActSeq = actSeq;
+        if (act && ACTIONS[act]) { action = { name: act, start: elapsed }; }
+      }
+    },
     setColour(col) { const n = tintOf(col); if (n !== colourNum) { colourNum = n; drawRing(); drawPlate(); } },
     setName(n) { const t = n || 'tanpa-nama'; if (label.text !== t) { label.text = t; drawPlate(); } },
     setScore(s) { const t = String(s ?? 0); if (score.text !== t) score.text = t; },
     setYou(yes) { you.visible = !!yes; },
-    update(deltaMS) {
-      const dx = this.target.x - c.x, dy = this.target.y - c.y;
-      const moving = isMoving(dx, dy);
-      facing = facingFromVelocity(dx, dy, facing);
+    update(deltaMS, nowMs) {
       elapsed += deltaMS;
-      const fr = frameAt(elapsed, moving ? WALK_FPS : IDLE_FPS);
-      sprite.texture = (moving ? TEX.walk : TEX.idle)[facing.row][fr];
-      sprite.scale.x = facing.flip ? -SPRITE_SCALE : SPRITE_SCALE;
-      c.x += dx * 0.25; c.y += dy * 0.25;
+
+      // Position + velocity from snapshot interpolation (see INTERP_DELAY), then a
+      // light frame-rate-independent low-pass toward it to absorb residual jitter
+      // ripple (cadence alignment removes the systematic aliasing; this mops up the
+      // random part). SMOOTH_TAU≈0 would be pure interpolation.
+      const s = sampleBuffer(buf, nowMs - INTERP_DELAY);
+      let vx = 0, vy = 0;
+      if (s) {
+        const k = SMOOTH_TAU > 0 ? 1 - Math.exp(-deltaMS / SMOOTH_TAU) : 1;
+        c.x += (s.x - c.x) * k; c.y += (s.y - c.y) * k;
+        vx = s.vx; vy = s.vy;
+      }
       c.zIndex = c.y; // depth sort: lower on screen = in front
+
+      gait = nextGait(gait, bufferSpeed(buf, nowMs - INTERP_DELAY, GAIT_WINDOW), GAIT_CFG);
+      facing = facingFromVelocity(vx, vy, facing);
+
+      let oy = 0, ringScale = 1;
+      let tex = null;
+      if (action) {
+        const sheet = TEX[ACTION_SHEET[action.name]];
+        const nFrames = sheet[facing.row].length;
+        const af = actionFrame(elapsed - action.start, ACTIONS[action.name]);
+        if (af >= nFrames) { action = null; }                    // one-shot done → locomotion
+        else {
+          tex = sheet[facing.row][af];
+          if (action.name === 'jump') {                          // real arc + shadow shrink for height
+            const a = arc01((elapsed - action.start) / (nFrames * 1000 / ACTIONS.jump));
+            oy = -JUMP_H * a; ringScale = 1 - 0.45 * a;
+          }
+        }
+      }
+      if (!tex) {                                                // locomotion: idle / walk / run loop
+        const loco = gait.loco;
+        const fps = loco === 'idle' ? IDLE_FPS : loco === 'run' ? RUN_FPS : WALK_FPS;
+        const rowTex = TEX[loco][facing.row];
+        tex = rowTex[frameAt(elapsed, fps, rowTex.length)];
+      }
+
+      sprite.texture = tex;
+      sprite.scale.x = facing.flip ? -SPRITE_SCALE : SPRITE_SCALE;
+      sprite.position.set(0, oy);
+      ring.scale.set(ringScale);
     },
   };
 }

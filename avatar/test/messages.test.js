@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parse, youMsg, rosterMsg, roomMsg, joinMsg, updateMsg, isMove } from '../src/messages.js';
+import { parse, youMsg, rosterMsg, roomMsg, joinMsg, updateMsg, isMove, isAct } from '../src/messages.js';
 
 test('parse', () => {
   assert.deepEqual(parse('{"t":"move","dir":"up"}'), { t: 'move', dir: 'up' });
@@ -10,6 +10,14 @@ test('isMove', () => {
   assert.equal(isMove({ t: 'move', dir: 'left' }), true);
   assert.equal(isMove({ t: 'move' }), false);
   assert.equal(isMove(null), false);
+});
+test('isAct accepts only known action names', () => {
+  assert.equal(isAct({ t: 'act', name: 'jump' }), true);
+  assert.equal(isAct({ t: 'act', name: 'punch' }), true);
+  assert.equal(isAct({ t: 'act', name: 'interact' }), true);
+  assert.equal(isAct({ t: 'act', name: 'fly' }), false);
+  assert.equal(isAct({ t: 'move', name: 'jump' }), false);
+  assert.equal(isAct(null), false);
 });
 test('builders round-trip', () => {
   assert.deepEqual(JSON.parse(youMsg({ id: 'local', nama: 'A', colour: 'cyan', x: 1, y: 2, score: 0, room: false })),
