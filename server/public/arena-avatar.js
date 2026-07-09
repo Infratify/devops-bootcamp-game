@@ -1,6 +1,6 @@
 // Shared avatar renderer. Uses global PIXI (vendor/pixi.min.js) + pure arena-anim.js.
 // Byte-identical copy in avatar/public/ and server/public/ (vendored, like pixi.min.js).
-import { facingFromVelocity, frameAt, sampleBuffer, bufferSpeed, arc01, actionFrame, nextGait } from './arena-anim.js';
+import { facingFromVelocity, frameAt, sampleBuffer, bufferSpeed, arc01, actionFrame, nextGait, nextAction } from './arena-anim.js';
 
 const FRAME = 32, ROWS = 5;
 const SPRITE_SCALE = 3;              // 32px art → 96px on screen
@@ -93,7 +93,8 @@ export function createAvatar(p, opts = {}) {
   const buf = [];                    // {t,x,y} snapshots for interpolation
   let gait = { running: false };     // idle/walk/run state (hysteresis on run)
   let action = null;                 // { name, start } while a one-shot plays
-  let lastActSeq = null;             // edge-detect roster action triggers
+  let lastActSeq = p?.actSeq ?? null; // edge-detect roster action triggers; seed from the
+                                     // entry we first saw so a stale action isn't replayed
 
   const ring = new PIXI.Graphics();
   const you = new PIXI.Graphics(); you.visible = false;
@@ -132,15 +133,13 @@ export function createAvatar(p, opts = {}) {
       buf.push({ t: nowMs, x, y });
       if (buf.length > BUFFER_MAX) buf.shift();
     },
-    // Edge-triggered one-shot action from the roster's {act, actSeq}. First sight sets
-    // the baseline so a stale action isn't replayed when an avatar first appears.
+    // Edge-triggered one-shot action from the roster's {act, actSeq}. Baseline is seeded
+    // at creation (see lastActSeq) so a stale action isn't replayed when an avatar first
+    // appears, yet the very first *fresh* action still plays for every viewer.
     setAction(act, actSeq) {
-      if (actSeq == null) return;
-      if (lastActSeq == null) { lastActSeq = actSeq; return; }
-      if (actSeq !== lastActSeq) {
-        lastActSeq = actSeq;
-        if (act && ACTIONS[act]) { action = { name: act, start: elapsed }; }
-      }
+      const r = nextAction(lastActSeq, act, actSeq, ACTIONS);
+      lastActSeq = r.seq;
+      if (r.play) { action = { name: r.play, start: elapsed }; }
     },
     setColour(col) { const n = tintOf(col); if (n !== colourNum) { colourNum = n; drawRing(); drawPlate(); } },
     setName(n) { const t = n || 'tanpa-nama'; if (label.text !== t) { label.text = t; drawPlate(); } },

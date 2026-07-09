@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { facingFromVelocity, isMoving, frameAt, sampleBuffer, bufferSpeed, arc01, actionFrame, nextGait } from '../public/arena-anim.js';
+import { facingFromVelocity, isMoving, frameAt, sampleBuffer, bufferSpeed, arc01, actionFrame, nextGait, nextAction } from '../public/arena-anim.js';
 
 const GAIT = { move: 20, run: 275, runExit: 0.9 };
 
@@ -113,4 +113,34 @@ test('nextGait: run has hysteresis so it will not flap at the boundary', () => {
   assert.equal(nextGait(run, 260, GAIT).loco, 'run', 'stays run above the lower exit threshold (247)');
   assert.equal(nextGait(run, 240, GAIT).loco, 'walk', 'drops to walk once clearly below');
   assert.equal(nextGait(g0, 260, GAIT).loco, 'walk', 'but needs > run (275) to enter run from walk');
+});
+
+const KNOWN = { jump: 12, punch: 16, interact: 10 };
+
+test('nextAction: entries with no actSeq never play and keep the seed', () => {
+  // a fresh remote avatar's roster entry carries no act/actSeq before it ever acts
+  assert.deepEqual(nextAction(null, undefined, undefined, KNOWN), { seq: null, play: null });
+  assert.deepEqual(nextAction(2, 'jump', undefined, KNOWN), { seq: 2, play: null });
+});
+
+test('nextAction: the FIRST fresh action after a no-action join plays (the replication fix)', () => {
+  // seed is null (join had no action); the first counter that appears is a real edge → play.
+  // The old baseline-on-first-sight rule swallowed exactly this, so nothing replicated to others.
+  assert.deepEqual(nextAction(null, 'jump', 1, KNOWN), { seq: 1, play: 'jump' });
+});
+
+test('nextAction: a stale action present at first sight is NOT replayed, but the next one is', () => {
+  // late joiner seeds lastSeq from the entry it first saw (actSeq 3) → same seq must not replay
+  assert.deepEqual(nextAction(3, 'jump', 3, KNOWN), { seq: 3, play: null });
+  assert.deepEqual(nextAction(3, 'punch', 4, KNOWN), { seq: 4, play: 'punch' });
+});
+
+test('nextAction: a repeated counter (rebroadcast on a later move) does not replay', () => {
+  assert.deepEqual(nextAction(5, 'jump', 5, KNOWN), { seq: 5, play: null });
+});
+
+test('nextAction: an unknown action name advances the counter but plays nothing', () => {
+  assert.deepEqual(nextAction(1, 'fly', 2, KNOWN), { seq: 2, play: null });
+  // and a genuine action right after is still detected as a change
+  assert.deepEqual(nextAction(2, 'interact', 3, KNOWN), { seq: 3, play: 'interact' });
 });

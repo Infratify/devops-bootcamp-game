@@ -40,3 +40,31 @@ test('avatar joins, spectator sees roster, disconnect removes, junk is ignored',
     await app.close();
   }
 });
+
+test('a cosmetic action relays through the hub to another viewer (act/actSeq survive the round-trip)', async () => {
+  const app = createServer({ port: 0 });
+  const port = app.port;
+  try {
+    // Avatar joins with NO act/actSeq — exactly what getJoinPayload sends. This is the
+    // case the first-action-swallow bug lived in: the acting entry carries no counter
+    // until the very first action, so the relay must introduce act/actSeq on that update.
+    const avatar = await openClient(port);
+    avatar.send(JSON.stringify({ t: 'join', nama: 'Ariff', colour: 'cyan', x: 100, y: 100, score: 0 }));
+    await nextMsg(avatar, (m) => m.t === 'welcome');
+
+    const viewer = await openClient(port);
+    viewer.send(JSON.stringify({ t: 'hello', role: 'spectator' }));
+    const before = await nextMsg(viewer, (m) => m.t === 'roster' && m.players.some((p) => p.nama === 'Ariff'));
+    assert.equal(before.players.find((p) => p.nama === 'Ariff').actSeq, undefined, 'no counter before any action');
+
+    avatar.send(JSON.stringify({ t: 'update', act: 'jump', actSeq: 1 }));
+    const after = await nextMsg(viewer, (m) => m.t === 'roster' && m.players.some((p) => p.act === 'jump'));
+    const ariff = after.players.find((p) => p.nama === 'Ariff');
+    assert.equal(ariff.act, 'jump', 'action name reaches the other viewer');
+    assert.equal(ariff.actSeq, 1, 'edge counter reaches the other viewer');
+
+    avatar.close(); viewer.close();
+  } finally {
+    await app.close();
+  }
+});

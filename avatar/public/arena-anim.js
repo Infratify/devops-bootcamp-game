@@ -81,3 +81,20 @@ export const arc01 = (p) => { const t = p < 0 ? 0 : p > 1 ? 1 : p; return 4 * t 
 export function actionFrame(elapsedMs, fps) {
   return Math.floor((elapsedMs * fps) / 1000);
 }
+
+// Edge-triggered one-shot action from a roster's {act, actSeq}. The roster carries the
+// acting player's latest action name plus a counter the sender bumps once per action;
+// a viewer plays the animation each time the counter CHANGES. `lastSeq` is the caller's
+// remembered counter — SEED it from whatever counter is on the entry when the avatar
+// first appears (null when the entry has none, which is the normal case): a stale action
+// already sitting on a late-joined avatar then shares that seed and is NOT replayed,
+// while the first *fresh* action arrives as a change from the seed and DOES play. (The
+// old "first non-null seq seen sets the baseline" rule wrongly swallowed that first
+// fresh action for every remote viewer, so actions only replicated from the 2nd on.)
+// Returns { seq, play } — `seq` is the counter to remember, `play` the action name to
+// start now (null = nothing new to play). Unknown names advance the counter but play
+// nothing, so a later real action isn't mis-compared against them.
+export function nextAction(lastSeq, act, actSeq, known) {
+  if (actSeq == null || actSeq === lastSeq) return { seq: lastSeq, play: null };
+  return { seq: actSeq, play: (act && known && known[act]) ? act : null };
+}
