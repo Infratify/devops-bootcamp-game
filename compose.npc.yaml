@@ -1,0 +1,86 @@
+# NPC crowd demo — a roomful of self-driving avatars, no students needed.
+#
+# Each `npc*` service sets NPC: "true" on the SAME arena-avatar image. An NPC skips
+# the profile store + volume entirely (identity is env-only: NAME/COLOR) and wanders
+# on its own — walk / idle / run / bounce off walls, with the occasional jump/punch/
+# interact. So there is NO profile service and NO volume here: just the room + N bots.
+#
+# This is NOT a pinned teaching artifact (that's compose.yaml). It's a prop for
+# populating the projector — a lively room to demo the shared arena, or a backdrop the
+# real student avatars walk into.
+#
+# BUILDS arena-avatar from this working tree (the NPC flag isn't published to GHCR yet).
+# Once it is, swap each `build: ./avatar` for `image: ghcr.io/infratify/arena-avatar`.
+#
+# Run:
+#   docker compose -f compose.npc.yaml up --build
+#     projector : http://localhost:3000     — watch the bots wander in
+#
+# Add more: copy an npc block, give it a new NAME + COLOR. (No port needed — nobody
+# drives a bot; they're not published.) Point SERVER at the class arena instead of the
+# local `server` to fill the instructor's room: SERVER: "<instructor-ip>:3000".
+#
+# Tear down:
+#   docker compose -f compose.npc.yaml down
+
+services:
+  server:
+    build: ./server
+    image: arena-server:local
+    ports:
+      - "3000:3000"          # publish the projector so you can watch the crowd
+
+  npc1:
+    build: ./avatar
+    image: arena-avatar:local
+    environment:
+      NPC: "true"
+      NAME: Ali
+      COLOR: orange
+      SERVER: server:3000
+    depends_on:
+      - server
+
+  npc2:
+    build: ./avatar
+    image: arena-avatar:local
+    environment:
+      NPC: "true"
+      NAME: Mei
+      COLOR: cyan
+      SERVER: server:3000
+    depends_on:
+      - server
+
+  npc3:
+    build: ./avatar
+    image: arena-avatar:local
+    environment:
+      NPC: "true"
+      NAME: Raju
+      COLOR: lime
+      SERVER: server:3000
+    depends_on:
+      - server
+
+  npc4:
+    build: ./avatar
+    image: arena-avatar:local
+    environment:
+      NPC: "true"
+      NAME: Siti
+      COLOR: magenta
+      SERVER: server:3000
+    depends_on:
+      - server
+
+  npc5:
+    build: ./avatar
+    image: arena-avatar:local
+    environment:
+      NPC: "true"
+      NAME: Wan
+      COLOR: yellow
+      SERVER: server:3000
+    depends_on:
+      - server
